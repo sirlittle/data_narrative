@@ -51,15 +51,24 @@ function renderIntro(data) {
   svg
     .append("text")
     .attr("x", 500)
+    .attr("y", 350)
+    .attr("text-anchor", "middle")
+    .text("Understanding the Factors Influencing Student Performance")
+    .attr("font-size", "24px");
+  svg
+    .append("text")
+    .attr("x", 500)
     .attr("y", 400)
     .attr("text-anchor", "middle")
-    .text("Student Performance Analysis")
-    .attr("font-size", "24px");
+    .text("Use the buttons below to navigate through the slides.")
+    .attr("font-size", "18px");
+
 }
 
 function renderGenderComparison(data) {
   console.log("Rendering gender comparison");
 
+  // Calculate average scores by gender
   const genderAverages = d3.rollup(
     data,
     (v) => ({
@@ -72,7 +81,8 @@ function renderGenderComparison(data) {
   );
   console.log("Gender averages:", genderAverages);
 
-  const margin = { top: 50, right: 40, bottom: 60, left: 50 };
+  // Set up chart dimensions
+  const margin = { top: 80, right: 100, bottom: 60, left: 60 };
   const width = 1000 - margin.left - margin.right;
   const height = 750 - margin.top - margin.bottom;
 
@@ -80,12 +90,12 @@ function renderGenderComparison(data) {
 
   const chart = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
+  // Set up scales
   const x = d3.scaleBand().range([0, width]).padding(0.1);
-
   const y = d3.scaleLinear().range([height, 0]);
 
+  // Add axes
   const xAxis = chart.append("g").attr("transform", `translate(0,${height})`);
-
   const yAxis = chart.append("g");
 
   const scoreTypes = ["average", "math", "reading", "writing"];
@@ -94,17 +104,19 @@ function renderGenderComparison(data) {
   // Define color scale
   const colorScale = d3.scaleOrdinal().domain(["male", "female"]).range(["#4e79a7", "#f28e2c"]); // Blue for male, Orange for female
 
+  // Function to update the chart based on selected score type
   function updateChart(scoreType) {
     currentScoreType = scoreType;
 
     const data = Array.from(genderAverages, ([key, value]) => ({ gender: key, score: value[scoreType] }));
 
     x.domain(data.map((d) => d.gender));
-    y.domain([0, d3.max(data, (d) => d.score)]);
+    y.domain([0, d3.max(data, (d) => d.score) * 1.1]); // Add 10% padding to the top
 
     xAxis.call(d3.axisBottom(x));
     yAxis.call(d3.axisLeft(y).ticks(5));
 
+    // Update bars
     const bars = chart.selectAll(".bar").data(data, (d) => d.gender);
 
     bars
@@ -122,7 +134,7 @@ function renderGenderComparison(data) {
 
     bars.exit().remove();
 
-    // Add labels on top of each bar
+    // Update labels
     const labels = chart.selectAll(".bar-label").data(data, (d) => d.gender);
 
     labels
@@ -139,6 +151,7 @@ function renderGenderComparison(data) {
 
     labels.exit().remove();
 
+    // Update y-axis label
     chart.select(".y-axis-label").remove();
     chart
       .append("text")
@@ -165,6 +178,51 @@ function renderGenderComparison(data) {
           scoreType === "average" ? "Overall" : scoreType.charAt(0).toUpperCase() + scoreType.slice(1)
         } Scores`
       );
+
+    // Add annotations
+    chart.selectAll(".annotation-group").remove();
+    
+    const annotations = [];
+    
+    // Annotation for the highest score
+    const maxScore = d3.max(data, d => d.score);
+    const maxGender = data.find(d => d.score === maxScore).gender;
+    annotations.push({
+      note: {
+        label: "Highest score",
+        title: `${maxGender.charAt(0).toUpperCase() + maxGender.slice(1)}: ${maxScore.toFixed(1)}`,
+        wrap: 150
+      },
+      x: x(maxGender) + x.bandwidth() / 2,
+      y: y(maxScore),
+      dx: maxGender === "male" ? 30 : -30,
+      dy: -30
+    });
+
+    // Annotation for the score difference
+    const maleScore = data.find(d => d.gender === "male").score;
+    const femaleScore = data.find(d => d.gender === "female").score;
+    const scoreDiff = Math.abs(maleScore - femaleScore).toFixed(1);
+    annotations.push({
+      note: {
+        label: "Score difference",
+        title: `${scoreDiff} points`,
+        wrap: 150
+      },
+      x: width / 2,
+      y: y((maleScore + femaleScore) / 2),
+      dx: 0,
+      dy: maleScore > femaleScore ? 30 : -30
+    });
+
+    // Create the annotation
+    const makeAnnotations = d3.annotation()
+      .type(d3.annotationLabel)
+      .annotations(annotations);
+
+    chart.append("g")
+      .attr("class", "annotation-group")
+      .call(makeAnnotations);
   }
 
   // Initial render
@@ -644,7 +702,7 @@ function renderRaceEthnicity(data) {
 }
 
 function renderLunchType(data) {
-  const margin = { top: 60, right: 120, bottom: 60, left: 60 };
+  const margin = { top: 60, right: 200, bottom: 100, left: 60 };
   const width = 1000 - margin.left - margin.right;
   const height = 750 - margin.top - margin.bottom;
 
@@ -723,26 +781,35 @@ function renderLunchType(data) {
     const avgScores = lunchAverages.get(lunchType);
     return {
       note: {
-        label: `${lunchType} average:
-Math ${avgScores.math.toFixed(1)}, Reading ${avgScores.reading.toFixed(1)}`,
-        title: lunchType.charAt(0).toUpperCase() + lunchType.slice(1),
-        wrap: 200
+        label: `Math: ${avgScores.math.toFixed(1)}\nReading: ${avgScores.reading.toFixed(1)}`,
+        title: lunchType.charAt(0).toUpperCase() + lunchType.slice(1) + " Lunch Average Scores",
+        wrap: 150,
       },
       x: xScale(avgScores.math),
       y: yScale(avgScores.reading),
-      dx: index === 0 ? 50 : -50,
-      dy: -30,
-      color: colorScale(lunchType)
+      dx: index === 0 ? 200 : -200,
+      dy: index === 0 ? 50 : -50,
+      color: "#2c3e50", // Dark blue-gray color for better contrast
     };
   });
 
-  const makeAnnotations = d3.annotation()
-    .type(d3.annotationLabel)
-    .annotations(annotations);
+  const makeAnnotations = d3.annotation().annotations(annotations);
 
-  chart.append("g")
-    .attr("class", "annotation-group")
-    .call(makeAnnotations);
+  chart.append("g").attr("class", "annotation-group").call(makeAnnotations);
+
+  // Add average points
+  chart
+    .selectAll(".average-point")
+    .data(lunchTypes)
+    .enter()
+    .append("circle")
+    .attr("class", "average-point")
+    .attr("cx", (d) => xScale(lunchAverages.get(d).math))
+    .attr("cy", (d) => yScale(lunchAverages.get(d).reading))
+    .attr("r", 8)
+    .attr("fill", (d) => colorScale(d))
+    .attr("stroke", "white")
+    .attr("stroke-width", 2);
 
   // Add legend
   const legend = chart.append("g").attr("transform", `translate(${width + 10}, 0)`);
@@ -757,7 +824,7 @@ Math ${avgScores.math.toFixed(1)}, Reading ${avgScores.reading.toFixed(1)}`,
   chart
     .append("text")
     .attr("x", width / 2)
-    .attr("y", height + margin.bottom - 10)
+    .attr("y", height + 40)
     .attr("text-anchor", "middle")
     .text("Math Score");
 
@@ -779,17 +846,105 @@ Math ${avgScores.math.toFixed(1)}, Reading ${avgScores.reading.toFixed(1)}`,
     .attr("font-size", "16px")
     .attr("font-weight", "bold")
     .text("Math vs Reading Scores by Lunch Type");
+
+  // Add text at the bottom saying you can hover over the dots
+  chart
+    .append("text")
+    .attr("x", width / 2)
+    .attr("y", height + 70)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "14px")
+    .attr("fill", "#555")
+    .text("Hover over each dot to get more information");
 }
 
 function renderConclusion(data) {
-  svg
-    .append("text")
-    .attr("x", 400)
-    .attr("y", 300)
+  // Clear previous content
+  svg.selectAll("*").remove();
+
+  // Create a rectangle for the card-like background
+  svg.append("rect")
+    .attr("x", 50)
+    .attr("y", 50)
+    .attr("width", 900)
+    .attr("height", 600)
+    .attr("fill", "#f0f0f0")
+    .attr("rx", 10)
+    .attr("ry", 10);
+
+  // Add title
+  svg.append("text")
+    .attr("x", 500)
+    .attr("y", 100)
     .attr("text-anchor", "middle")
     .text("Key Takeaways")
-    .attr("font-size", "24px");
+    .attr("font-size", "28px")
+    .attr("font-weight", "bold");
 
-  // Add text summarizing main findings
-  // Implement interactive elements to revisit key charts
+  // Calculate average scores
+  const avgScores = d3.rollup(
+    data,
+    v => ({
+      math: d3.mean(v, d => d["math score"]),
+      reading: d3.mean(v, d => d["reading score"]),
+      writing: d3.mean(v, d => d["writing score"])
+    }),
+    d => d.lunch
+  );
+
+  // Add takeaways
+  const takeaways = [
+    "Test performance is influenced by socioeconomic factors.",
+    "Students with standard lunch have higher average scores.",
+    "Certain ethnic groups tend to perform better than others.",
+    "Parental education level correlates with student performance.",
+    "Further investigation into socioeconomic factors and their impact on education is recommended."
+  ];
+
+  svg.selectAll(".takeaway")
+    .data(takeaways)
+    .enter()
+    .append("text")
+    .attr("class", "takeaway")
+    .attr("x", 100)
+    .attr("y", (d, i) => 160 + i * 40)
+    .text(d => `• ${d}`)
+    .attr("font-size", "16px")
+    .attr("fill", "#333");
+
+  // Add buttons to revisit charts
+  const chartButtons = [
+    { name: "Lunch Type Comparison", func: "renderLunchType" },
+    { name: "Gender Comparison", func: "renderGenderComparison" },
+    { name: "Parental Education", func: "renderParentalEducation" }
+  ];
+
+  svg.selectAll(".chart-button")
+    .data(chartButtons)
+    .enter()
+    .append("g")
+    .attr("class", "chart-button")
+    .attr("transform", (d, i) => `translate(${100 + i * 300}, 500)`)
+    .each(function(d) {
+      d3.select(this)
+        .append("rect")
+        .attr("width", 250)
+        .attr("height", 50)
+        .attr("fill", "#4CAF50")
+        .attr("rx", 25)
+        .attr("ry", 25);
+
+      d3.select(this)
+        .append("text")
+        .attr("x", 125)
+        .attr("y", 30)
+        .attr("text-anchor", "middle")
+        .attr("fill", "white")
+        .attr("font-size", "16px")
+        .text(d.name);
+    })
+    .on("click", function(event, d) {
+      // Call the respective rendering function
+      window[d.func](data);
+    });
 }
